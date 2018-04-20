@@ -1,0 +1,74 @@
+version: 4
+shared:
+    annotations:
+        resource: IOS
+    settings:
+        email:
+            addresses:
+                - 'aleksei.kac@mapquest.com'
+            statuses:
+                - SUCCESS
+                - FAILURE
+
+        slack:
+            channels: 
+                - 'mq-solutions-sd'
+            statuses:
+                - SUCCESS
+                - FAILURE
+            
+    environment:
+        APP: com.mapquest.sample.MQNavigationTestHarness
+        BRANCH: sdv4
+        WORKSPACE: MQNavigation.xcworkspace
+        SCHEME: MQNavigationTestHarness
+        PROJECT: MQNavigation.xcodeproj
+        KEYCHAIN: sd_AolMain
+        FASTLANE_SKIP_UPDATE_CHECK: 1
+jobs:
+    main:
+        requires: [~pr, ~commit]
+        template: mobile/ios-main
+        steps:
+            - prebuild-init: bundler install --path=. && bundler exec pod install --repo-update
+            # This is overriding the "build-and-test" step already in this template with our own
+            - build-and-test: screwdriver/bin/fastlane testScrewdriver derived_data_path:${BUILD_DIR} output_directory:${TEST_DIR} buildlog_path:${SD_ARTIFACTS_DIR}
+            
+    InternalDemoDebug:
+        requires: [main]
+        template: mobile/ios-build
+        steps:
+            - prebuild-init: bundler install --path=. && bundler exec pod install --repo-update
+        environment:
+            APP: com.mapquest.enterprise.navigation-demo-ios
+            SCHEME: MQInternalDemo
+            PROJECT: MQDemoApp/MQInternalDemo.xcodeproj
+            FLAVOR: debug
+            EXPORT_OPTIONS_PLIST: screwdriver/development.plist
+            PROVISIONING_PROFILES: YahooIPhoneApps
+            KEYCHAIN: sd_MainLicense
+
+    devicelab:
+        requires: [main]
+        template: mobile/ios-devicelab
+        steps:
+            - prebuild-init: bundler install --path=. && bundler exec pod install --repo-update
+        environment:
+            APP: com.mapquest.enterprise.navigation-demo-ios
+            SCHEME: MQInternalDemo
+            PROJECT: MQDemoApp/MQInternalDemo.xcodeproj
+            FLAVOR: debug
+            EXPORT_OPTIONS_PLIST: screwdriver/development.plist
+            PROVISIONING_PROFILES: YahooIPhoneApps
+            DEVICELAB_DEVICE_TYPES: 285
+            DEVICELAB_CONF: screwdriver/dl.conf
+            DEVICELAB_TEST_TYPE: xctest
+            KEYCHAIN: sd_MainLicense
+
+#    hockey:
+#        requires: [devicelab]
+#        template: mobile/ios-build
+#        steps:
+#            - build-and-test: screwdriver/bin/fastlane hockey
+#            - slather: echo "Ignoring Slather"
+#            
